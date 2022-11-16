@@ -53,8 +53,7 @@ const getSups = async () => {
   return JSON.parse(sups);
 };
 
-const generateDsNumberList = async () => {
-  const nightSup = await getNightSupId();
+const generateDsNumberList = async (nightSup) => {
   const { supervisors: sups } = await getSups();
   let dsNumberList = "";
   for (const sup of sups) {
@@ -99,8 +98,13 @@ const generateDayDsNumberList = async () => {
   return dayDsNumberList;
 };
 
-const handleNight = async () => {
-  const dsNumberList = await generateDsNumberList();
+const handleNight = async (nightSup) => {
+  let dsNumberList;
+  if (nightSup <= 0) {
+    dsNumberList = await generateBackupDsNumberList();
+  } else {
+    dsNumberList = await generateDsNumberList(nightSup);
+  }
   let accessToken;
   try {
     accessToken = await client.getToken(tokenParams, { json: true });
@@ -109,30 +113,36 @@ const handleNight = async () => {
     console.log("Access token error: ", error.message);
   }
 
-  axios.post(
+  const res = await axios.post(
     FREEPBX_GQL_URL,
     {
       query: `mutation{
         updateRingGroup(input:{
           groupNumber:9002
-          description:"test12"
+          description:"Main DS"
           extensionList:"${dsNumberList}"
           strategy:"ringall"
-          ringTime: "20"
-          })}`,
+          ringTime: "15"
+          }) {
+          message status
+        }
+      }`,
     },
     { headers: { Authorization: `Bearer ${accessToken.token.access_token}` } }
   );
+  return res.status;
 };
 
 //cron scheduling
 
-cron.schedule(NIGHT_CRON_STRING, () => {
-  handleNight();
+cron.schedule(NIGHT_CRON_STRING, async () => {
+  handleNight(await getNightSupId());
 });
 
 cron.schedule(DAY_CRON_STRING, () => {
   handleDay();
 });
 
-handleNight();
+(async () => {
+  console.log(await handleNight(await getNightSupId()));
+})();
