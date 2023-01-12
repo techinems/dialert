@@ -11,18 +11,16 @@
         "901"
       ],
       "day": true,
-      "night": true,
       "backup_night": true
     },
     {
       "name": "Sparky",
       "id": 122,
-      "phone_numbers": [
+      "external_phone_numbers": [
         "6175551234"
       ],
       "internal_extensions": [],
       "day": false,
-      "night": true,
       "backup_night": false
     }
   ]

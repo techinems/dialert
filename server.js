@@ -14,6 +14,7 @@ const FREEPBX_CLIENT_SECRET = process.env.FREEPBX_CLIENT_SECRET;
 const FREEPBX_SCOPE = process.env.FREEPBX_SCOPE;
 const DS_RINGGROUP = process.env.DS_RINGGROUP;
 const BACKUP_DS_RINGGROUP = process.env.BACKUP_DS_RINGGROUP;
+const DS_CALLER_ID = process.env.DS_CALLER_ID;
 const NIGHT_CRON_STRING = process.env.NIGHT_CRON_STRING;
 const DAY_CRON_STRING = process.env.DAY_CRON_STRING;
 const DS_URL = process.env.DS_URL;
@@ -58,9 +59,11 @@ const generateDsNumberList = async (nightSup) => {
   let dsNumberList = "";
   for (const sup of sups) {
     if (sup.id == nightSup) {
-      for (number of sup.phone_numbers) {
-        dsNumberList += number.toString();
-        dsNumberList += "-";
+      for (num of sup.external_phone_numbers) {
+        dsNumberList += `${num}#-`;
+      }
+      for (num of sup.internal_extensions) {
+        dsNumberList += `${num}-`;
       }
     }
   }
@@ -73,9 +76,11 @@ const generateBackupDsNumberList = async () => {
   let backupDsNumberList = "";
   for (const sup of sups) {
     if (sup.backup_night) {
-      for (number of sup.phone_numbers) {
-        backupDsNumberList += number.toString();
-        backupDsNumberList += "-";
+      for (num of sup.external_phone_numbers) {
+        backupDsNumberList += `${num}#-`;
+      }
+      for (num of sup.internal_extensions) {
+        backupDsNumberList += `${num}-`;
       }
     }
   }
@@ -88,9 +93,11 @@ const generateDayDsNumberList = async () => {
   let dayDsNumberList = "";
   for (const sup of sups) {
     if (sup.day) {
-      for (number of sup.phone_numbers) {
-        dayDsNumberList += number.toString();
-        dayDsNumberList += "-";
+      for (num of sup.external_phone_numbers) {
+        dayDsNumberList += `${num}#-`;
+      }
+      for (num of sup.internal_extensions) {
+        dayDsNumberList += `${num}-`;
       }
     }
   }
@@ -98,12 +105,83 @@ const generateDayDsNumberList = async () => {
   return dayDsNumberList;
 };
 
+const handleDay = async () => {
+  const dsNumberList = await generateDayDsNumberList();
+  let accessToken;
+  try {
+    accessToken = await client.getToken(tokenParams, { json: true });
+    // console.log(accessToken.token.access_token);
+  } catch (error) {
+    console.log("Access token error: ", error.message);
+  }
+  const res = await axios.post(
+    FREEPBX_GQL_URL,
+    {
+      query: `mutation{
+        updateRingGroup(input:{
+          groupNumber:${DS_RINGGROUP}
+          description:"Main DS"
+          extensionList:"${dsNumberList}"
+          strategy:"ringall"
+          ringTime: "60"
+          changecid: "fixed"
+          fixedcid: "${DS_CALLER_ID}"
+        }) {
+          message status
+        }
+      }`,
+    },
+    { headers: { Authorization: `Bearer ${accessToken.token.access_token}` } }
+  );
+
+  const backupRes = await axios.post(
+    FREEPBX_GQL_URL,
+    {
+      query: `mutation{
+        updateRingGroup(input:{
+          groupNumber:${BACKUP_DS_RINGGROUP}
+          description:"Backup DS"
+          extensionList:"${dsNumberList}"
+          strategy:"ringall"
+          ringTime: "60"
+          changecid: "fixed"
+          fixedcid: "${DS_CALLER_ID}"
+        }) {
+          message status
+        }
+      }`,
+    },
+    { headers: { Authorization: `Bearer ${accessToken.token.access_token}` } }
+  );
+
+  const reloadRes = await axios.post(
+    FREEPBX_GQL_URL,
+    {
+      query: `mutation{
+        doreload(input:{}) {
+          message
+          status
+          transaction_id
+        }
+      }`,
+    },
+    { headers: { Authorization: `Bearer ${accessToken.token.access_token}` } }
+  );
+
+  return {
+    main: res.status,
+    reload: reloadRes.status,
+  };
+};
+
 const handleNight = async (nightSup) => {
   let dsNumberList;
+  let backupDsNumberList;
   if (nightSup <= 0) {
     dsNumberList = await generateBackupDsNumberList();
   } else {
     dsNumberList = await generateDsNumberList(nightSup);
+    backupDsNumberList = await generateBackupDsNumberList();
   }
   let accessToken;
   try {
@@ -118,19 +196,60 @@ const handleNight = async (nightSup) => {
     {
       query: `mutation{
         updateRingGroup(input:{
-          groupNumber:9002
+          groupNumber:${DS_RINGGROUP}
           description:"Main DS"
           extensionList:"${dsNumberList}"
           strategy:"ringall"
           ringTime: "15"
-          }) {
+          changecid: "fixed"
+          fixedcid: "${DS_CALLER_ID}"
+        }) {
           message status
         }
       }`,
     },
     { headers: { Authorization: `Bearer ${accessToken.token.access_token}` } }
   );
-  return res.status;
+
+  const backupRes = await axios.post(
+    FREEPBX_GQL_URL,
+    {
+      query: `mutation{
+        updateRingGroup(input:{
+          groupNumber:${BACKUP_DS_RINGGROUP}
+          description:"Backup DS"
+          extensionList:"${backupDsNumberList}"
+          strategy:"ringall"
+          ringTime: "60"
+          changecid: "fixed"
+          fixedcid: "${DS_CALLER_ID}"
+        }) {
+          message status
+        }
+      }`,
+    },
+    { headers: { Authorization: `Bearer ${accessToken.token.access_token}` } }
+  );
+
+  const reloadRes = await axios.post(
+    FREEPBX_GQL_URL,
+    {
+      query: `mutation{
+        doreload(input:{}) {
+          message
+          status
+          transaction_id
+        }
+      }`,
+    },
+    { headers: { Authorization: `Bearer ${accessToken.token.access_token}` } }
+  );
+
+  return {
+    main: res.status,
+    backup: backupRes.status,
+    reload: reloadRes.status,
+  };
 };
 
 //cron scheduling
@@ -144,5 +263,17 @@ cron.schedule(DAY_CRON_STRING, () => {
 });
 
 (async () => {
-  console.log(await handleNight(await getNightSupId()));
+  const dayArr = DAY_CRON_STRING.split(" ");
+  const nightArr = NIGHT_CRON_STRING.split(" ");
+  const h = new Date().getHours();
+
+  //check on application start (i.e. the
+  //cronjob hasn't run yet)
+  if (h >= dayArr[1] && h < nightArr[1]) {
+    //it's daytime
+    handleDay();
+  } else {
+    //it's nighttime
+    handleNight(await getNightSupId());
+  }
 })();
