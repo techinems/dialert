@@ -4,7 +4,7 @@
   },
   "name": "dialert",
   "description": "**DiALERT** checks a schedule and changes a PBX ring group accordingly. It was created for @rpiambulance for use by their duty supervisors.",
-  "version": "0.0.9",
+  "version": "1.0.0",
   "main": "server.js",
   "repository": {
     "type": "git",
