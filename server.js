@@ -20,6 +20,7 @@ const DAY_CRON_STRING = process.env.DAY_CRON_STRING;
 const DS_URL = process.env.DS_URL;
 const DS_URL_TOKEN = process.env.DS_URL_TOKEN;
 const SUPERVISOR_INFO_FILE = process.env.SUPERVISOR_INFO_FILE;
+const TZ = process.env.TZ;
 
 //oauth  stuff
 
@@ -144,6 +145,7 @@ const handleDay = async () => {
           extensionList:"${dsNumberList}"
           strategy:"ringall"
           ringTime: "60"
+          callRecording: "force"
           changecid: "fixed"
           fixedcid: "${DS_CALLER_ID}"
         }) {
@@ -170,6 +172,7 @@ const handleDay = async () => {
 
   return {
     main: res.status,
+    backup: backupRes.status,
     reload: reloadRes.status,
   };
 };
@@ -201,6 +204,7 @@ const handleNight = async (nightSup) => {
           extensionList:"${dsNumberList}"
           strategy:"ringall"
           ringTime: "15"
+          callRecording: "force"
           changecid: "fixed"
           fixedcid: "${DS_CALLER_ID}"
         }) {
@@ -221,6 +225,7 @@ const handleNight = async (nightSup) => {
           extensionList:"${backupDsNumberList}"
           strategy:"ringall"
           ringTime: "60"
+          callRecording: "force"
           changecid: "fixed"
           fixedcid: "${DS_CALLER_ID}"
         }) {
@@ -254,13 +259,21 @@ const handleNight = async (nightSup) => {
 
 //cron scheduling
 
-cron.schedule(NIGHT_CRON_STRING, async () => {
-  handleNight(await getNightSupId());
-});
+cron.schedule(
+  NIGHT_CRON_STRING,
+  async () => {
+    handleNight(await getNightSupId());
+  },
+  { timezone: TZ }
+);
 
-cron.schedule(DAY_CRON_STRING, () => {
-  handleDay();
-});
+cron.schedule(
+  DAY_CRON_STRING,
+  () => {
+    handleDay();
+  },
+  { timezone: TZ }
+);
 
 (async () => {
   const dayArr = DAY_CRON_STRING.split(" ");
