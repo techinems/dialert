@@ -1,6 +1,10 @@
-# dialert
+[![Build Status](https://github.com/techinems/dialert/actions/workflows/main.yml/badge.svg)](https://github.com/techinems/dialert/actions/workflows/main.yml/badge.svg)
 
-**DiALERT** checks a schedule and changes a PBX ring group accordingly. It was created for @rpiambulance for use by their duty supervisors.
+[![forthebadge](https://forthebadge.com/images/badges/built-with-love.svg)](https://forthebadge.com) [![forthebadge](https://forthebadge.com/images/badges/made-with-javascript.svg)](https://forthebadge.com)
+
+# DiALERT
+
+**DiALERT** checks a schedule and changes a PBX ring group accordingly. It was created for [RPI Ambulance](https://rpiambulance.com) for use by their duty supervisors.
 
 ## Setup
 
@@ -49,6 +53,8 @@ Next, you need to set up the environment variables. This can be done right in th
 | `TZ`                    | America/New_York                                  |                                                                         |
 
 Most of the above variables need to be set with values configured on or obtained from other servers (e.g. FreePBX, the scheduling server, etc.). Unless you make modifications to this application, `DS_URL`, in particular, must be configured to provide the user ID of a nighttime duty supervisor. Further, the application is currently written to query that URL with `?token=TOKENHERE` where `TOKENHERE` is set in `DS_URL_TOKEN`.
+
+With all that set, you should be able to start the app using something like `docker compose up -d dialert`. This may vary depending on your configuration.
 
 ## Credits
 
