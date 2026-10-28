@@ -55,59 +55,35 @@ const getSups = async () => {
   return JSON.parse(sups);
 };
 
-const generateDsNumberList = async (nightSup) => {
+//a sup's numbers, formatted for a FreePBX ring group extension list
+const formatNumbers = (sup) => [
+  ...(sup.external_phone_numbers || []).map((num) => `${num}#`),
+  ...(sup.internal_extensions || []),
+];
+
+const generateNumberList = async (include) => {
   const { supervisors: sups } = await getSups();
-  let dsNumberList = "";
-  for (const sup of sups) {
-    if (sup.id == nightSup) {
-      for (num of sup.external_phone_numbers) {
-        dsNumberList += `${num}#-`;
-      }
-      for (num of sup.internal_extensions) {
-        dsNumberList += `${num}-`;
-      }
-    }
-  }
-  dsNumberList = dsNumberList.slice(0, -1);
-  return dsNumberList;
+  return sups
+    .filter(include)
+    .flatMap(formatNumbers)
+    .join("-");
 };
 
-const generateBackupDsNumberList = async () => {
-  const { supervisors: sups } = await getSups();
-  let backupDsNumberList = "";
-  for (const sup of sups) {
-    if (sup.backup_night) {
-      for (num of sup.external_phone_numbers) {
-        backupDsNumberList += `${num}#-`;
-      }
-      for (num of sup.internal_extensions) {
-        backupDsNumberList += `${num}-`;
-      }
-    }
-  }
-  backupDsNumberList = backupDsNumberList.slice(0, -1);
-  return backupDsNumberList;
-};
+const generateDsNumberList = (nightSup) =>
+  generateNumberList((sup) => sup.id == nightSup);
 
-const generateDayDsNumberList = async () => {
-  const { supervisors: sups } = await getSups();
-  let dayDsNumberList = "";
-  for (const sup of sups) {
-    if (sup.day) {
-      for (num of sup.external_phone_numbers) {
-        dayDsNumberList += `${num}#-`;
-      }
-      for (num of sup.internal_extensions) {
-        dayDsNumberList += `${num}-`;
-      }
-    }
-  }
-  dayDsNumberList = dayDsNumberList.slice(0, -1);
-  return dayDsNumberList;
-};
+//only an explicit `true` in sups.json opts a supervisor in
+const generateBackupDsNumberList = () =>
+  generateNumberList((sup) => sup.backup_night === true);
+
+const generateDayDsNumberList = () =>
+  generateNumberList((sup) => sup.day === true);
 
 const handleDay = async () => {
   const dsNumberList = await generateDayDsNumberList();
+  if (!dsNumberList) {
+    console.log('No supervisors have "day": true in sups.json');
+  }
   let accessToken;
   try {
     accessToken = await client.getToken(tokenParams, { json: true });
@@ -178,13 +154,15 @@ const handleDay = async () => {
 };
 
 const handleNight = async (nightSup) => {
-  let dsNumberList;
-  let backupDsNumberList;
-  if (nightSup <= 0) {
-    dsNumberList = await generateBackupDsNumberList();
-  } else {
-    dsNumberList = await generateDsNumberList(nightSup);
-    backupDsNumberList = await generateBackupDsNumberList();
+  const backupDsNumberList = await generateBackupDsNumberList();
+  let dsNumberList = nightSup > 0 ? await generateDsNumberList(nightSup) : "";
+  if (!dsNumberList) {
+    //no night sup scheduled, or they aren't in sups.json:
+    //the backup_night sups take the main group too
+    console.log(
+      `No numbers for night sup "${nightSup}"; using backup_night supervisors`
+    );
+    dsNumberList = backupDsNumberList;
   }
   let accessToken;
   try {

@@ -54,6 +54,17 @@ Next, you need to set up the environment variables. This can be done right in th
 
 Most of the above variables need to be set with values configured on or obtained from other servers (e.g. FreePBX, the scheduling server, etc.). Unless you make modifications to this application, `DS_URL`, in particular, must be configured to provide the user ID of a nighttime duty supervisor. Further, the application is currently written to query that URL with `?token=TOKENHERE` where `TOKENHERE` is set in `DS_URL_TOKEN`.
 
+### Supervisor file
+
+`sups.json` (see `sups.json.example`) lists every supervisor's `id`, `external_phone_numbers`, and `internal_extensions`, plus two flags:
+
+| Flag           | Effect                                                                                                                     |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `day`          | Rung by both the main and backup ring groups during the day                                                                |
+| `backup_night` | Rung by the backup ring group at night, and by the main ring group too if no night supervisor is scheduled or found here |
+
+Only a literal `true` turns a flag on. A missing flag, `false`, or a string like `"true"` all count as off.
+
 With all that set, you should be able to start the app using something like `docker compose up -d dialert`. This may vary depending on your configuration.
 
 ## Credits
